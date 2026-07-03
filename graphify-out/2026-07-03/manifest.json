@@ -1,8 +1,8 @@
 {
   "extract_pose.py": {
-    "mtime": 1783102066.3130019,
-    "ast_hash": "ce863bba7e9fd653384cfc2f38216570",
-    "semantic_hash": ""
+    "mtime": 1783068021.4609468,
+    "ast_hash": "c89c87133c99b7f6537ff05a0f3c55e3",
+    "semantic_hash": "c89c87133c99b7f6537ff05a0f3c55e3"
   },
   "import_pose.py": {
     "mtime": 1783068238.814518,
@@ -23,15 +23,5 @@
     "mtime": 1783065095.0,
     "ast_hash": "e40e856bca42de4c11f01edf1cd320f0",
     "semantic_hash": "e40e856bca42de4c11f01edf1cd320f0"
-  },
-  ".agents/rules/graphify.md": {
-    "mtime": 1783101798.6181648,
-    "ast_hash": "f1e53ecc9194573d3c28fc116c743a2e",
-    "semantic_hash": ""
-  },
-  ".agents/workflows/graphify.md": {
-    "mtime": 1783101798.6183267,
-    "ast_hash": "0bc020d491fca99550c1ea3de0a5f862",
-    "semantic_hash": ""
   }
 }

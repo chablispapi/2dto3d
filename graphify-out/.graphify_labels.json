@@ -1,1 +1,23 @@
-{"0": "Depth Recovery Concepts", "1": "Blender Armature Pipeline", "2": "Pose Extraction Flow", "3": "import_pose.py Code", "4": "extract_pose.py Code"}
+{
+  "0": "Depth Recovery Concepts",
+  "1": "Blender Armature Pipeline",
+  "2": "Pose Extraction Flow",
+  "3": "import_pose.py Code",
+  "4": "extract_pose.py Code",
+  "5": "2dto3d — dance video to 3D Blender animation",
+  "6": "graphify.md",
+  "7": "graphify.md",
+  "8": "Blender Stick-Figure Armature",
+  "9": "Blender Bundled Python Isolation Constraint",
+  "10": "Video FPS to Blender Scene FPS Synchronization",
+  "11": "import_pose.py Script",
+  "12": "Landmark Jitter and Deferred Smoothing",
+  "13": "MediaPipe Pose",
+  "14": "Monocular Depth Recovery via Human Body Priors",
+  "15": "OpenCV Frame Reading",
+  "16": "Perspective Projection Depth Loss",
+  "17": "MediaPipe POSE_CONNECTIONS Topology",
+  "18": "pose_data.json Intermediate Format",
+  "19": "pose_world_landmarks (Metric Hip-Centered Coordinates)",
+  "20": "Global Root Translation Loss (Hip-Centered Landmarks)"
+}
