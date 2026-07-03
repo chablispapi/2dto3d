@@ -78,6 +78,85 @@ def rigidify(frames):
     return out
 
 
+def ground_anchor(frames):
+    """Plant the feet on the ground so hip sway/bob shows over stationary feet.
+
+    MediaPipe's world landmarks are HIP-centered: the hips sit at the origin every
+    frame. If we just use the raw coordinates, the hips are frozen and the feet slide.
+    This integrates the movement of the support foot to recover true hip translation,
+    ensuring the support foot stays perfectly planted during weight shifts."""
+    frozen = [f for f in frames if f is not None]
+    if not frozen:
+        return frames
+        
+    H = []
+    curr_H = [0.0, 0.0, 0.0]
+    prev_f = None
+    
+    for f in frames:
+        if f is None:
+            H.append(None)
+            continue
+        if prev_f is not None:
+            # support foot is the one with max y (world-DOWN)
+            s = 27 if f[27][1] > f[28][1] else 28
+            curr_H[0] += prev_f[s][0] - f[s][0]
+            curr_H[1] += prev_f[s][1] - f[s][1]
+            curr_H[2] += prev_f[s][2] - f[s][2]
+        H.append(list(curr_H))
+        prev_f = f
+        
+    # We now have the integrated hip position H.
+    # To prevent infinite drift across the room (keeping the dance in-place),
+    # we subtract a very heavily smoothed version of H (a high-pass filter).
+    # A 2-second window was too aggressive and canceled out the actual dance sways!
+    # We use a 10-second window so it only removes very slow global room travel.
+    out = []
+    fps = 41.43  # approximate, just for window size
+    window = int(fps * 10.0)
+    
+    valid_H = [h for h in H if h is not None]
+    smoothed_H = []
+    for i in range(len(valid_H)):
+        start = max(0, i - window // 2)
+        end = min(len(valid_H), i + window // 2)
+        chunk = valid_H[start:end]
+        avg_x = sum(h[0] for h in chunk) / len(chunk)
+        avg_y = sum(h[1] for h in chunk) / len(chunk)
+        avg_z = sum(h[2] for h in chunk) / len(chunk)
+        smoothed_H.append((avg_x, avg_y, avg_z))
+        
+    # Apply the shift
+    h_idx = 0
+    for i, f in enumerate(frames):
+        if f is None:
+            out.append(None)
+            continue
+        
+        # True hip position minus the slow drift
+        hx = H[i][0] - smoothed_H[h_idx][0]
+        hy = H[i][1] - smoothed_H[h_idx][1]
+        hz = H[i][2] - smoothed_H[h_idx][2]
+        h_idx += 1
+        
+        out.append([[f[lm][0] + hx, f[lm][1] + hy, f[lm][2] + hz, f[lm][3]] for lm in range(33)])
+        
+    # Finally, shift the whole clip so the median lowest foot is at y=0, x=0, z=0
+    # just to center the rig in Blender.
+    valid_out = [f for f in out if f is not None]
+    if valid_out:
+        tgt_y = statistics.median(max(f[27][1], f[28][1]) for f in valid_out)
+        tgt_x = statistics.median((f[27][0] + f[28][0])/2 for f in valid_out)
+        tgt_z = statistics.median((f[27][2] + f[28][2])/2 for f in valid_out)
+        for f in valid_out:
+            for lm in range(33):
+                f[lm][0] -= tgt_x
+                f[lm][1] -= tgt_y
+                f[lm][2] -= tgt_z
+                
+    return out
+
+
 def _one_euro(series, fps, mincutoff, beta, dcutoff=1.0):
     """One Euro filter over one axis of one landmark. None = dropped frame -> reset."""
     def alpha(cutoff):
@@ -136,60 +215,37 @@ def main(video="dance.MP4", out="pose_data.json"):
         running_mode=vision.RunningMode.VIDEO,
     )
     frames = []
-    recent_scales = []  # last N accepted meters-per-pixel scales, for spike rejection
+    timestamps = []
     with vision.PoseLandmarker.create_from_options(opts) as landmarker:
         while True:
             ok, frame = cap.read()
             if not ok:
                 break
+            
+            ts = int(cap.get(cv2.CAP_PROP_POS_MSEC))
+            if timestamps and ts <= timestamps[-1]:
+                ts = timestamps[-1] + 1
+            timestamps.append(ts)
+            
             img = mp.Image(image_format=mp.ImageFormat.SRGB,
                            data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            res = landmarker.detect_for_video(img, int(len(frames) * 1000 / fps))
+            res = landmarker.detect_for_video(img, ts)
             wl = res.pose_world_landmarks  # metric, hip-centered (see CLAUDE.md)
-            nl = res.pose_landmarks        # normalized image coordinates
-            
-            if wl and nl:
-                wl = wl[0]
-                nl = nl[0]
-                
-                # Recover global root translation from normalized hip landmarks.
-                # scale = meters-per-pixel, from a size reference that is stable under
-                # rotation: full-body vertical extent (shoulder-center -> ankle-center).
-                # Hip WIDTH (the obvious choice) collapses toward zero when the dancer
-                # turns sideways -> scale explodes; vertical extent barely changes.
-                h, w = frame.shape[:2]
-                body_px = abs((nl[27].y + nl[28].y) / 2 - (nl[11].y + nl[12].y) / 2) * h
-                body_m = abs((wl[27].y + wl[28].y) / 2 - (wl[11].y + wl[12].y) / 2)
-                scale = body_m / body_px if body_px > 1e-6 else 0
-
-                # Spike rejection: clamp to the recent median. Even the stable proxy
-                # jumps when the lower body is occluded; hold within 2x of median.
-                if recent_scales:
-                    med = statistics.median(recent_scales)
-                    scale = med if scale <= 0 else max(0.5 * med, min(2.0 * med, scale))
-                if scale > 0:
-                    recent_scales.append(scale)
-                    del recent_scales[:-15]
-
-                # Center of screen is roughly origin
-                mid_x_n = (nl[23].x + nl[24].x) / 2
-                mid_y_n = (nl[23].y + nl[24].y) / 2
-                tx = (mid_x_n - 0.5) * w * scale
-                ty = (mid_y_n - 0.5) * h * scale
-
-                frames.append([[l.x + tx, l.y + ty, l.z, l.visibility] for l in wl])
+            if wl:
+                frames.append([[l.x, l.y, l.z, l.visibility] for l in wl[0]])
             else:
                 frames.append(None)  # ponytail: None = no detection; importer skips these
             if len(frames) % 100 == 0:
                 print(f"{len(frames)}/{total} frames", flush=True)
     cap.release()
 
-    # Smooth jitter, then pin bone lengths so limbs stop stretching
+    # Smooth jitter, pin bone lengths, then plant the feet on the ground
     frames = smooth_frames(frames, fps)
     frames = rigidify(frames)
+    frames = ground_anchor(frames)
 
     with open(out, "w") as f:
-        json.dump({"fps": fps, "frames": frames}, f)
+        json.dump({"fps": fps, "frames": frames, "timestamps": timestamps}, f)
     detected = sum(f is not None for f in frames)
     print(f"done: {detected}/{len(frames)} frames with pose @ {fps:.2f} fps -> {out}")
 

@@ -29,12 +29,12 @@ def main():
     with open(HERE / "pose_data.json") as f:
         data = json.load(f)
     frames = data["frames"]
+    timestamps = data.get("timestamps")
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     scene.render.fps = round(data["fps"])
     scene.render.fps_base = scene.render.fps / data["fps"]  # exact playback speed
-    scene.frame_start, scene.frame_end = 1, len(frames)
 
     # one empty per landmark, keyframed with the raw motion
     empties = []
@@ -43,12 +43,23 @@ def main():
         e.empty_display_size = 0.02
         scene.collection.objects.link(e)
         empties.append(e)
-    for f, lms in enumerate(frames, start=1):
+        
+    max_frame = len(frames)
+    for i, lms in enumerate(frames):
         if lms is None:
             continue  # no detection: hold interpolation between neighbors
+            
+        if timestamps:
+            f = round(timestamps[i] * data["fps"] / 1000.0) + 1
+            max_frame = max(max_frame, f)
+        else:
+            f = i + 1
+            
         for e, (x, y, z, _vis) in zip(empties, lms):
             e.location = mp_to_blender(x, y, z)
             e.keyframe_insert("location", frame=f)
+            
+    scene.frame_start, scene.frame_end = 1, max_frame
 
     # armature: one bone per connection, pinned between its two empties
     arm = bpy.data.armatures.new("dancer")
@@ -70,9 +81,31 @@ def main():
         s.target = empties[b]
     bpy.ops.object.mode_set(mode="OBJECT")
 
+    # Bake constraints into keyframed bone rotations and delete empties
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode="POSE")
+    bpy.ops.pose.select_all(action='SELECT')
+    bpy.ops.nla.bake(
+        frame_start=1,
+        frame_end=max_frame,
+        only_selected=True,
+        visual_keying=True,
+        clear_constraints=True,
+        bake_types={'POSE'}
+    )
+    
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.object.select_all(action='DESELECT')
+    for e in empties:
+        e.select_set(True)
+    bpy.ops.object.delete()
+    
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+
     scene.frame_set(1)
     bpy.ops.wm.save_as_mainfile(filepath=str(HERE / "dance.blend"))
-    print(f"saved dance.blend: {len(frames)} frames @ {data['fps']:.2f} fps")
+    print(f"saved dance.blend: {max_frame} frames @ {data['fps']:.2f} fps")
 
 
 main()

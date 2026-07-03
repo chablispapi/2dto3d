@@ -51,13 +51,19 @@ outputs 33 body landmarks with metric (x, y, z) coordinates. So the pipeline is:
      Rebuild each frame over a spanning tree of the skeleton (rooted at a hip): keep each
      joint's observed direction from its parent but pin the bone to its median length.
      Face landmarks (0-10, disconnected from the body graph) pass through unchanged.
-- **Global root translation is recovered** in `extract_pose.py` so the dancer moves
-  across the floor: screen position comes from the normalized hip midpoint, scaled by a
-  meters-per-pixel factor. That scale uses full-body vertical extent (shoulder→ankle) as
-  the size reference — NOT hip width, which collapses to zero when the dancer turns
-  sideways and makes the scale explode. Per-frame scale is clamped to a running median to
-  reject spikes. Still a monocular depth hack (a ~1 m snap can occur in the first ~40
-  warm-up frames); disable by zeroing `tx`/`ty` if you want a hip-centered skeleton.
+- **Feet are planted on the ground** (`ground_anchor`, the last pass) so hip movement
+  shows. MediaPipe world landmarks are hip-centered — the hips sit at the origin every
+  frame — so a dancer shifting weight over planted feet comes out INVERTED: hips look
+  frozen while the feet slide. `ground_anchor` re-references each frame to the support
+  (lowest) foot, pinning it to a fixed ground point; the hips then sway/bob over the feet
+  as in the video. This replaced an earlier monocular hip-screen-translation hack that
+  only recovered ~9 cm and was jittery. Trade-off: global floor travel (dancer walking
+  across the room) is intentionally dropped — right for an in-place dance, not for one
+  where the performer covers ground.
+- **VFR video warning**: this footage is variable-frame-rate (phone/TikTok). OpenCV
+  reports an inconsistent frame count and FPS run-to-run; cross-check against
+  `ffprobe`'s `avg_frame_rate`/`duration` (here 41.43 fps, 14.70 s) if playback speed
+  looks off.
 - `CONNECTIONS` (the POSE_CONNECTIONS topology) is duplicated in both scripts on purpose:
   they run in different Python environments (venv vs Blender) and can't share an import.
 
