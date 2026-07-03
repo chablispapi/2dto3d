@@ -18,17 +18,32 @@ Instead of hand-writing that depth model, we use **MediaPipe Pose**, a pretraine
 monocular 3D pose estimator that has learned exactly those priors. Per video frame it
 outputs 33 body landmarks with metric (x, y, z) coordinates. So the pipeline is:
 
-    dance.MP4 → MediaPipe (x,y,z per joint per frame) → JSON → Blender armature keyframes
+    video → MediaPipe (x,y,z per joint per frame) → JSON → Blender armature keyframes
 
-## Pipeline (2 scripts, keep it that way)
+## Pipeline (one script, one command)
 
-1. `extract_pose.py` — runs in the project venv. OpenCV reads frames from `dance.MP4`,
-   MediaPipe Pose estimates per-frame landmarks, writes `pose_data.json`:
-   video fps + a list of frames, each with 33 × [x, y, z, visibility].
-2. `import_pose.py` — runs inside Blender: `blender --python import_pose.py`.
-   Reads `pose_data.json`, builds a stick-figure armature (bones following MediaPipe's
-   POSE_CONNECTIONS topology), inserts keyframes for every frame.
-3. Open the result in Blender and press play.
+Everything lives in **`dance_to_3d.py`** and runs with a single command:
+
+    .venv/bin/python dance_to_3d.py [video ...]
+
+With no arguments it processes every video in `dances/`; each `<name>.<ext>` becomes
+`blend-files/<name>.blend`. Open a result in Blender and press play.
+
+The file has two halves that run in different interpreters — this is why it can't just
+be a linear script:
+
+1. **extract half** (venv, `extract()`): OpenCV reads frames, MediaPipe Pose estimates
+   per-frame world landmarks, they're cleaned (smooth → rigidify → ground-anchor) and
+   written to a temporary JSON (fps + frames of 33 × [x,y,z,visibility] + per-frame
+   timestamps).
+2. **build half** (Blender, `build_blend()`): builds a stick-figure armature over the
+   POSE_CONNECTIONS topology, keyframes it, bakes the constraints into bone motion, and
+   saves the `.blend`.
+
+The venv half re-invokes Blender on this same file as a subprocess
+(`blender --background --python dance_to_3d.py -- <json> <blend>`), so you only run the
+one command. `import bpy` succeeds only inside Blender, which is how the file knows which
+half to run; the temp JSON is deleted afterward.
 
 ## Technical notes
 
@@ -39,9 +54,11 @@ outputs 33 body landmarks with metric (x, y, z) coordinates. So the pipeline is:
   (verify visually — a wrong axis shows up as a dancer lying down or mirrored).
 - Read the video's FPS with OpenCV, store it in the JSON, and set Blender's scene FPS
   from it so playback speed matches the video.
-- **Blender ships its own Python** — `import_pose.py` may only use stdlib (`json`,
-  `math`) plus `bpy`/`mathutils`. Never import mediapipe/cv2/numpy there.
-- Landmark jitter is cleaned in `extract_pose.py` after detection, in two passes:
+- **Blender ships its own Python** — the build half (`build_blend()` + `mp_to_blender()`)
+  may only use stdlib (`json`, `math`) plus `bpy`. Keep the `cv2`/`mediapipe` imports
+  inside `extract()` so the file stays importable under Blender (that's what lets it
+  re-invoke itself).
+- Landmark jitter is cleaned in the extract half after detection, in two passes:
   1. **One Euro filter** (`smooth_frames`) — a velocity-adaptive low-pass per landmark
      axis: heavy smoothing when a joint is slow (kills jitter), light when fast (no lag
      on quick dance moves). Knobs `mincutoff`/`beta` are exposed for taste-tuning; a
@@ -54,27 +71,34 @@ outputs 33 body landmarks with metric (x, y, z) coordinates. So the pipeline is:
 - **Feet are planted on the ground** (`ground_anchor`, the last pass) so hip movement
   shows. MediaPipe world landmarks are hip-centered — the hips sit at the origin every
   frame — so a dancer shifting weight over planted feet comes out INVERTED: hips look
-  frozen while the feet slide. `ground_anchor` re-references each frame to the support
-  (lowest) foot, pinning it to a fixed ground point; the hips then sway/bob over the feet
-  as in the video. This replaced an earlier monocular hip-screen-translation hack that
+  frozen while the feet slide. `ground_anchor` recovers true hip translation by
+  integrating the support (lowest) foot's frame-to-frame motion, so the planted foot
+  stays put and the hips move over it. To avoid drifting across the room it then subtracts
+  a heavily smoothed (10-second window) copy of that translation — a high-pass that keeps
+  the fast dance sways but removes only very slow global travel — and centers the median
+  foot at the origin. This replaced an earlier monocular hip-screen-translation hack that
   only recovered ~9 cm and was jittery. Trade-off: global floor travel (dancer walking
-  across the room) is intentionally dropped — right for an in-place dance, not for one
-  where the performer covers ground.
+  across the room) is intentionally dropped — right for an in-place dance.
 - **VFR video warning**: this footage is variable-frame-rate (phone/TikTok). OpenCV
   reports an inconsistent frame count and FPS run-to-run; cross-check against
   `ffprobe`'s `avg_frame_rate`/`duration` (here 41.43 fps, 14.70 s) if playback speed
   looks off.
-- `CONNECTIONS` (the POSE_CONNECTIONS topology) is duplicated in both scripts on purpose:
-  they run in different Python environments (venv vs Blender) and can't share an import.
+- `CONNECTIONS` (the POSE_CONNECTIONS topology) is now a single module-level constant —
+  merging the two scripts into one file removed the copy that used to live in each.
+- Video keyframes use the real per-frame timestamps (`cv2.CAP_PROP_POS_MSEC`), stored in
+  the JSON, so VFR footage stays in sync; the armature is baked (`nla.bake`) and the
+  driver empties deleted, leaving a self-contained keyframed armature in the `.blend`.
 
 ## Environment
 
 - Python venv in the project root with `mediapipe` and `opencv-python`.
-- Blender installed separately (invoke as `blender` from the CLI, or full app path).
+- Blender installed separately. The script calls it at `/Applications/Blender.app/
+  Contents/MacOS/Blender`; override with the `BLENDER` env var if it lives elsewhere.
+- Inputs live in `dances/`, outputs in `blend-files/`.
 
 ## Non-goals
 
 - No custom depth solver (MediaPipe's learned z is the whole point).
 - No body mesh, skinning, or retargeting to rigs like Rigify.
 - No realtime processing; offline batch is fine.
-- No more than the 2 scripts above.
+- Keep it to the single `dance_to_3d.py`; don't split the pipeline back into two scripts.

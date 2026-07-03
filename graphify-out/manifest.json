@@ -1,37 +1,32 @@
 {
-  "extract_pose.py": {
-    "mtime": 1783102066.3130019,
-    "ast_hash": "ce863bba7e9fd653384cfc2f38216570",
-    "semantic_hash": ""
-  },
-  "import_pose.py": {
-    "mtime": 1783068238.814518,
-    "ast_hash": "8c2e37bfe1780f00e05010ac1920a2a0",
-    "semantic_hash": "8c2e37bfe1780f00e05010ac1920a2a0"
-  },
-  "pose_data.json": {
-    "mtime": 1783068059.6099463,
-    "ast_hash": "7432c7a4cb9bae367b1135341f5a1c5d",
-    "semantic_hash": "7432c7a4cb9bae367b1135341f5a1c5d"
-  },
   "CLAUDE.md": {
-    "mtime": 1783067489.9788432,
-    "ast_hash": "83c568abb46598b3cbd4445416918284",
-    "semantic_hash": "83c568abb46598b3cbd4445416918284"
-  },
-  "dance.MP4": {
-    "mtime": 1783065095.0,
-    "ast_hash": "e40e856bca42de4c11f01edf1cd320f0",
-    "semantic_hash": "e40e856bca42de4c11f01edf1cd320f0"
+    "mtime": 1783116372.3360844,
+    "ast_hash": "55ea67d7ff8e69f63f69d25d96878000",
+    "semantic_hash": "55ea67d7ff8e69f63f69d25d96878000"
   },
   ".agents/rules/graphify.md": {
     "mtime": 1783101798.6181648,
     "ast_hash": "f1e53ecc9194573d3c28fc116c743a2e",
-    "semantic_hash": ""
+    "semantic_hash": "f1e53ecc9194573d3c28fc116c743a2e"
   },
   ".agents/workflows/graphify.md": {
     "mtime": 1783101798.6183267,
     "ast_hash": "0bc020d491fca99550c1ea3de0a5f862",
-    "semantic_hash": ""
+    "semantic_hash": "0bc020d491fca99550c1ea3de0a5f862"
+  },
+  "dance_to_3d.py": {
+    "mtime": 1783116237.1041384,
+    "ast_hash": "bc3dc218bdc97afa1f62037a86bc538c",
+    "semantic_hash": "bc3dc218bdc97afa1f62037a86bc538c"
+  },
+  "dances/dance.MP4": {
+    "mtime": 1783111297.575345,
+    "ast_hash": "4db72dfa145a54bc99e1a3e846a06582",
+    "semantic_hash": "4db72dfa145a54bc99e1a3e846a06582"
+  },
+  "dances/dance1.mov": {
+    "mtime": 1783115219.0,
+    "ast_hash": "ccd41ce596257f5a3ed5528a86022203",
+    "semantic_hash": "ccd41ce596257f5a3ed5528a86022203"
   }
 }
