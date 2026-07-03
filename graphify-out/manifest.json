@@ -1,0 +1,27 @@
+{
+  "extract_pose.py": {
+    "mtime": 1783068021.4609468,
+    "ast_hash": "c89c87133c99b7f6537ff05a0f3c55e3",
+    "semantic_hash": "c89c87133c99b7f6537ff05a0f3c55e3"
+  },
+  "import_pose.py": {
+    "mtime": 1783068238.814518,
+    "ast_hash": "8c2e37bfe1780f00e05010ac1920a2a0",
+    "semantic_hash": "8c2e37bfe1780f00e05010ac1920a2a0"
+  },
+  "pose_data.json": {
+    "mtime": 1783068059.6099463,
+    "ast_hash": "7432c7a4cb9bae367b1135341f5a1c5d",
+    "semantic_hash": "7432c7a4cb9bae367b1135341f5a1c5d"
+  },
+  "CLAUDE.md": {
+    "mtime": 1783067489.9788432,
+    "ast_hash": "83c568abb46598b3cbd4445416918284",
+    "semantic_hash": "83c568abb46598b3cbd4445416918284"
+  },
+  "dance.MP4": {
+    "mtime": 1783065095.0,
+    "ast_hash": "e40e856bca42de4c11f01edf1cd320f0",
+    "semantic_hash": "e40e856bca42de4c11f01edf1cd320f0"
+  }
+}

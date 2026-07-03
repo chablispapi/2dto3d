@@ -1,0 +1,561 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {
+    "hyperedges": [
+      {
+        "id": "dance_to_blender_dataflow",
+        "label": "Video to Armature Data Flow",
+        "nodes": [
+          "claude_extract_pose_script",
+          "claude_pose_data_json",
+          "claude_import_pose_script",
+          "claude_blender_armature"
+        ],
+        "relation": "form",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "CLAUDE.md"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "label": "extract_pose.py",
+      "file_type": "code",
+      "source_file": "extract_pose.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "extract_pose",
+      "community": 4,
+      "norm_label": "extract_pose.py"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "extract_pose.py",
+      "source_location": "L19",
+      "_origin": "ast",
+      "id": "extract_pose_main",
+      "community": 4,
+      "norm_label": "main()"
+    },
+    {
+      "label": "Extract 3D pose landmarks from a dance video into pose_data.json.  Usage: .venv/",
+      "file_type": "rationale",
+      "source_file": "extract_pose.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "extract_pose_rationale_1",
+      "community": 4,
+      "norm_label": "extract 3d pose landmarks from a dance video into pose_data.json.  usage: .venv/"
+    },
+    {
+      "label": "import_pose.py",
+      "file_type": "code",
+      "source_file": "import_pose.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "import_pose",
+      "community": 3,
+      "norm_label": "import_pose.py"
+    },
+    {
+      "label": "mp_to_blender()",
+      "file_type": "code",
+      "source_file": "import_pose.py",
+      "source_location": "L23",
+      "_origin": "ast",
+      "id": "import_pose_mp_to_blender",
+      "community": 3,
+      "norm_label": "mp_to_blender()"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "import_pose.py",
+      "source_location": "L28",
+      "_origin": "ast",
+      "id": "import_pose_main",
+      "community": 3,
+      "norm_label": "main()"
+    },
+    {
+      "label": "Build a keyframed stick-figure armature from pose_data.json.  Usage: /Applicatio",
+      "file_type": "rationale",
+      "source_file": "import_pose.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "import_pose_rationale_1",
+      "community": 3,
+      "norm_label": "build a keyframed stick-figure armature from pose_data.json.  usage: /applicatio"
+    },
+    {
+      "label": "2dto3d Dance Video to Blender Pipeline",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_2dto3d_pipeline",
+      "community": 1,
+      "norm_label": "2dto3d dance video to blender pipeline"
+    },
+    {
+      "label": "Monocular Depth Recovery via Human Body Priors",
+      "file_type": "rationale",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_monocular_depth_recovery",
+      "community": 0,
+      "norm_label": "monocular depth recovery via human body priors"
+    },
+    {
+      "label": "MediaPipe Pose",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_mediapipe_pose",
+      "community": 0,
+      "norm_label": "mediapipe pose"
+    },
+    {
+      "label": "extract_pose.py Script",
+      "file_type": "code",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_extract_pose_script",
+      "community": 2,
+      "norm_label": "extract_pose.py script"
+    },
+    {
+      "label": "import_pose.py Script",
+      "file_type": "code",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_import_pose_script",
+      "community": 1,
+      "norm_label": "import_pose.py script"
+    },
+    {
+      "label": "pose_data.json Intermediate Format",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_pose_data_json",
+      "community": 2,
+      "norm_label": "pose_data.json intermediate format"
+    },
+    {
+      "label": "pose_world_landmarks (Metric Hip-Centered Coordinates)",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_pose_world_landmarks",
+      "community": 0,
+      "norm_label": "pose_world_landmarks (metric hip-centered coordinates)"
+    },
+    {
+      "label": "MediaPipe to Blender Coordinate Conversion",
+      "file_type": "rationale",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_coordinate_conversion",
+      "community": 0,
+      "norm_label": "mediapipe to blender coordinate conversion"
+    },
+    {
+      "label": "Blender Stick-Figure Armature",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_blender_armature",
+      "community": 1,
+      "norm_label": "blender stick-figure armature"
+    },
+    {
+      "label": "MediaPipe POSE_CONNECTIONS Topology",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_pose_connections_topology",
+      "community": 1,
+      "norm_label": "mediapipe pose_connections topology"
+    },
+    {
+      "label": "Blender Bundled Python Isolation Constraint",
+      "file_type": "rationale",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_blender_python_isolation",
+      "community": 1,
+      "norm_label": "blender bundled python isolation constraint"
+    },
+    {
+      "label": "Landmark Jitter and Deferred Smoothing",
+      "file_type": "rationale",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_landmark_jitter_smoothing",
+      "community": 2,
+      "norm_label": "landmark jitter and deferred smoothing"
+    },
+    {
+      "label": "Video FPS to Blender Scene FPS Synchronization",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_fps_synchronization",
+      "community": 2,
+      "norm_label": "video fps to blender scene fps synchronization"
+    },
+    {
+      "label": "Global Root Translation Loss (Hip-Centered Landmarks)",
+      "file_type": "rationale",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_root_translation_loss",
+      "community": 0,
+      "norm_label": "global root translation loss (hip-centered landmarks)"
+    },
+    {
+      "label": "Perspective Projection Depth Loss",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_perspective_projection",
+      "community": 0,
+      "norm_label": "perspective projection depth loss"
+    },
+    {
+      "label": "OpenCV Frame Reading",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_opencv",
+      "community": 2,
+      "norm_label": "opencv frame reading"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "extract_pose.py",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "extract_pose",
+      "target": "extract_pose_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "extract_pose.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "extract_pose_rationale_1",
+      "target": "extract_pose",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "import_pose.py",
+      "source_location": "L28",
+      "weight": 1.0,
+      "source": "import_pose",
+      "target": "import_pose_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "import_pose.py",
+      "source_location": "L23",
+      "weight": 1.0,
+      "source": "import_pose",
+      "target": "import_pose_mp_to_blender",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "import_pose.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "import_pose_rationale_1",
+      "target": "import_pose",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "import_pose.py",
+      "source_location": "L50",
+      "weight": 1.0,
+      "source": "import_pose_main",
+      "target": "import_pose_mp_to_blender",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_2dto3d_pipeline",
+      "target": "claude_extract_pose_script"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_2dto3d_pipeline",
+      "target": "claude_import_pose_script"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_monocular_depth_recovery",
+      "target": "claude_mediapipe_pose"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_perspective_projection",
+      "target": "claude_monocular_depth_recovery"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_extract_pose_script",
+      "target": "claude_mediapipe_pose"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_mediapipe_pose",
+      "target": "claude_pose_world_landmarks"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_extract_pose_script",
+      "target": "claude_fps_synchronization"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_extract_pose_script",
+      "target": "claude_opencv"
+    },
+    {
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_extract_pose_script",
+      "target": "claude_pose_data_json"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_landmark_jitter_smoothing",
+      "target": "claude_extract_pose_script"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_blender_python_isolation",
+      "target": "claude_import_pose_script"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_import_pose_script",
+      "target": "claude_blender_armature"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_import_pose_script",
+      "target": "claude_coordinate_conversion"
+    },
+    {
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_import_pose_script",
+      "target": "claude_pose_data_json"
+    },
+    {
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_fps_synchronization",
+      "target": "claude_pose_data_json"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_pose_world_landmarks",
+      "target": "claude_coordinate_conversion"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_root_translation_loss",
+      "target": "claude_pose_world_landmarks"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_blender_armature",
+      "target": "claude_pose_connections_topology"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "dance_to_blender_dataflow",
+      "label": "Video to Armature Data Flow",
+      "nodes": [
+        "claude_extract_pose_script",
+        "claude_pose_data_json",
+        "claude_import_pose_script",
+        "claude_blender_armature"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md"
+    }
+  ]
+}
