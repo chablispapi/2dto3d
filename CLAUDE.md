@@ -41,12 +41,25 @@ outputs 33 body landmarks with metric (x, y, z) coordinates. So the pipeline is:
   from it so playback speed matches the video.
 - **Blender ships its own Python** — `import_pose.py` may only use stdlib (`json`,
   `math`) plus `bpy`/`mathutils`. Never import mediapipe/cv2/numpy there.
-- Landmark jitter between frames is normal. Don't smooth preemptively; if playback looks
-  noisy, add a simple moving average over each landmark's time series in
-  `extract_pose.py`.
-- World landmarks are hip-centered, so global position (the dancer moving across the
-  floor) is lost. Acceptable for v1; if needed later, take root translation from the
-  normalized hip landmark.
+- Landmark jitter is cleaned in `extract_pose.py` after detection, in two passes:
+  1. **One Euro filter** (`smooth_frames`) — a velocity-adaptive low-pass per landmark
+     axis: heavy smoothing when a joint is slow (kills jitter), light when fast (no lag
+     on quick dance moves). Knobs `mincutoff`/`beta` are exposed for taste-tuning; a
+     plain moving average was tried first but can't beat the lag-vs-jitter tradeoff.
+  2. **Bone-length rigidify** (`rigidify`) — MediaPipe's world landmarks let limbs
+     stretch 3-5× frame to frame, which is the main thing that reads as non-human.
+     Rebuild each frame over a spanning tree of the skeleton (rooted at a hip): keep each
+     joint's observed direction from its parent but pin the bone to its median length.
+     Face landmarks (0-10, disconnected from the body graph) pass through unchanged.
+- **Global root translation is recovered** in `extract_pose.py` so the dancer moves
+  across the floor: screen position comes from the normalized hip midpoint, scaled by a
+  meters-per-pixel factor. That scale uses full-body vertical extent (shoulder→ankle) as
+  the size reference — NOT hip width, which collapses to zero when the dancer turns
+  sideways and makes the scale explode. Per-frame scale is clamped to a running median to
+  reject spikes. Still a monocular depth hack (a ~1 m snap can occur in the first ~40
+  warm-up frames); disable by zeroing `tx`/`ty` if you want a hip-centered skeleton.
+- `CONNECTIONS` (the POSE_CONNECTIONS topology) is duplicated in both scripts on purpose:
+  they run in different Python environments (venv vs Blender) and can't share an import.
 
 ## Environment
 
