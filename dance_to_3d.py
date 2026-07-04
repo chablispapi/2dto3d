@@ -40,14 +40,14 @@ CONNECTIONS = [
 
 # ─────────────────────────── landmark cleanup (venv side) ───────────────────────────
 
-def _one_euro(series, fps, mincutoff, beta, dcutoff=1.0):
+def _one_euro(series, visibilities, fps, mincutoff, beta, dcutoff=1.0):
     """One Euro filter over one axis of one landmark. None = dropped frame -> reset."""
     def alpha(cutoff):
         tau = 1.0 / (2 * math.pi * cutoff)
         return 1.0 / (1.0 + tau * fps)
 
     out, x_prev, dx_prev = [], None, 0.0
-    for x in series:
+    for x, vis in zip(series, visibilities):
         if x is None:
             out.append(None)
             x_prev = None
@@ -59,7 +59,12 @@ def _one_euro(series, fps, mincutoff, beta, dcutoff=1.0):
         dx = (x - x_prev) * fps
         a_d = alpha(dcutoff)
         dx_hat = a_d * dx + (1 - a_d) * dx_prev
-        a = alpha(mincutoff + beta * abs(dx_hat))  # faster motion -> higher cutoff -> less lag
+        
+        # Scale beta by visibility. If visibility is low (e.g. arm behind back during spin),
+        # beta approaches 0, creating a heavy low-pass filter that prevents instant teleporting glitches.
+        current_beta = beta * (vis if vis is not None else 1.0)
+        
+        a = alpha(mincutoff + current_beta * abs(dx_hat))  # faster motion -> higher cutoff -> less lag
         x_hat = a * x + (1 - a) * x_prev
         out.append(x_hat)
         x_prev, dx_prev = x_hat, dx_hat
@@ -74,8 +79,10 @@ def smooth_frames(frames, fps, mincutoff=1.5, beta=0.4):
     if not frames: return frames
     out = [None if f is None else [[0.0, 0.0, 0.0, f[lm][3]] for lm in range(33)] for f in frames]
     for lm in range(33):
+        visibilities = [None if f is None else f[lm][3] for f in frames]
         for c in range(3):
-            sm = _one_euro([None if f is None else f[lm][c] for f in frames], fps, mincutoff, beta)
+            series = [None if f is None else f[lm][c] for f in frames]
+            sm = _one_euro(series, visibilities, fps, mincutoff, beta)
             for i, v in enumerate(sm):
                 if out[i] is not None:
                     out[i][lm][c] = v
@@ -128,7 +135,17 @@ def rigidify(frames):
             d = [f[v][c] - f[u][c] for c in range(3)]
             n = sum(x * x for x in d) ** 0.5 or 1.0
             pos[v] = [pos[u][c] + d[c] / n * canon[v] for c in range(3)]
-        out.append([(pos.get(lm, f[lm][:3])) + [f[lm][3]] for lm in range(33)])
+            
+        # The face landmarks (0-10) are disconnected from the body graph.
+        # Shift them by the same amount the neck was shifted by rigidify,
+        # so the head stays perfectly attached to the rigidified body.
+        raw_neck = [(f[11][c] + f[12][c]) / 2 for c in range(3)]
+        rigid_neck = [(pos[11][c] + pos[12][c]) / 2 for c in range(3)]
+        delta = [rigid_neck[c] - raw_neck[c] for c in range(3)]
+        for lm in range(11):
+            pos[lm] = [f[lm][c] + delta[c] for c in range(3)]
+            
+        out.append([pos[lm] + [f[lm][3]] for lm in range(33)])
     return out
 
 
@@ -270,8 +287,9 @@ def build_blend(json_path, blend_path):
     scene.render.fps_base = scene.render.fps / data["fps"]  # exact playback speed
 
     # one empty per landmark, keyframed with the raw motion
+    # We add 3 virtual landmarks: 33 (Neck), 34 (Pelvis), 35 (Head Center)
     empties = []
-    for i in range(33):
+    for i in range(36):
         e = bpy.data.objects.new(f"lm.{i:02d}", None)
         e.empty_display_size = 0.02
         scene.collection.objects.link(e)
@@ -286,27 +304,75 @@ def build_blend(json_path, blend_path):
             max_frame = max(max_frame, f)
         else:
             f = i + 1
-        for e, (x, y, z, _vis) in zip(empties, lms):
+            
+        # Scale up hands (make fingers visually larger)
+        hand_scale = 1.5
+        for wrist, fingers in [(15, [17, 19, 21]), (16, [18, 20, 22])]:
+            for fing in fingers:
+                for c in range(3):
+                    lms[fing][c] = lms[wrist][c] + (lms[fing][c] - lms[wrist][c]) * hand_scale
+            
+        neck = [(lms[11][c] + lms[12][c]) / 2 for c in range(4)]
+        pelvis = [(lms[23][c] + lms[24][c]) / 2 for c in range(4)]
+        head = [(lms[7][c] + lms[8][c]) / 2 for c in range(4)]
+        extended_lms = lms + [neck, pelvis, head]
+        
+        for e, (x, y, z, _vis) in zip(empties, extended_lms):
             e.location = mp_to_blender(x, y, z)
             e.keyframe_insert("location", frame=f)
     scene.frame_start, scene.frame_end = 1, max_frame
 
-    # armature: one bone per connection, pinned between its two empties
     arm = bpy.data.armatures.new("dancer")
-    arm.display_type = "STICK"
+    arm.display_type = "OCTAHEDRAL"
     obj = bpy.data.objects.new("dancer", arm)
     scene.collection.objects.link(obj)
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.mode_set(mode="EDIT")
-    for a, b in CONNECTIONS:
+    
+    BLENDER_CONNECTIONS = [
+        (34, 33),  # Pelvis -> Neck (Spine)
+        (33, 35),  # Neck -> Head (Midpoint of Ears)
+        (33, 11),  # Neck -> L Shoulder
+        (33, 12),  # Neck -> R Shoulder
+        (34, 23),  # Pelvis -> L Hip
+        (34, 24),  # Pelvis -> R Hip
+        # Left Arm
+        (11, 13), (13, 15), (15, 17), (15, 19), (15, 21),
+        # Right Arm
+        (12, 14), (14, 16), (16, 18), (16, 20), (16, 22),
+        # Left Leg
+        (23, 25), (25, 27), (27, 29), (27, 31),
+        # Right Leg
+        (24, 26), (26, 28), (28, 30), (28, 32),
+    ]
+    
+    # Find first valid frame to set the correct edit mode rest lengths
+    valid_frames = [f for f in frames if f is not None]
+    if valid_frames:
+        f0 = valid_frames[0]
+        # Make sure to scale hands in frame 0 too!
+        for wrist, fingers in [(15, [17, 19, 21]), (16, [18, 20, 22])]:
+            for fing in fingers:
+                for c in range(3):
+                    f0[fing][c] = f0[wrist][c] + (f0[fing][c] - f0[wrist][c]) * hand_scale
+        neck_f0 = [(f0[11][c] + f0[12][c]) / 2 for c in range(4)]
+        pelvis_f0 = [(f0[23][c] + f0[24][c]) / 2 for c in range(4)]
+        head_f0 = [(f0[7][c] + f0[8][c]) / 2 for c in range(4)]
+        ext_f0 = f0 + [neck_f0, pelvis_f0, head_f0]
+    else:
+        ext_f0 = [[0, 0, 0, 0]] * 36
+
+    for a, b in BLENDER_CONNECTIONS:
         bone = arm.edit_bones.new(f"{a:02d}-{b:02d}")
-        bone.head = (0, 0, 0.0)  # rest pose irrelevant; constraints drive everything
-        bone.tail = (0, 0, 0.1)
+        bone.head = mp_to_blender(*ext_f0[a][:3])
+        bone.tail = mp_to_blender(*ext_f0[b][:3])
     bpy.ops.object.mode_set(mode="POSE")
-    for a, b in CONNECTIONS:
+    for a, b in BLENDER_CONNECTIONS:
         pb = obj.pose.bones[f"{a:02d}-{b:02d}"]
         pb.constraints.new("COPY_LOCATION").target = empties[a]
-        pb.constraints.new("STRETCH_TO").target = empties[b]
+        c = pb.constraints.new("STRETCH_TO")
+        c.target = empties[b]
+        c.volume = 'NO_VOLUME'
 
     # bake constraints into keyframed bone motion, then drop the empties so the
     # .blend is a self-contained armature
