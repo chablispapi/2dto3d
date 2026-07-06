@@ -393,6 +393,87 @@ def build_blend(json_path, blend_path):
     print(f"  saved {Path(blend_path).name}: {max_frame} frames @ {data['fps']:.2f} fps")
 
 
+# ─────────────────────────── self-verification ───────────────────────────
+
+def dump_bones(blend_path, out_json, n=8):
+    """Blender side: open a built .blend and dump each bone's world head/tail at n
+    sample frames. No GL needed (OpenGL render is impossible headless), so this is how
+    we get the baked armature back out to look at it."""
+    import bpy
+
+    bpy.ops.wm.open_mainfile(filepath=blend_path)
+    scene = bpy.context.scene
+    arm = next(o for o in scene.objects if o.type == "ARMATURE")
+    f0, f1 = scene.frame_start, scene.frame_end
+    frames = sorted({round(f0 + (f1 - f0) * k / (n - 1)) for k in range(n)})
+    fps = scene.render.fps / scene.render.fps_base
+    samples = []
+    for f in frames:
+        scene.frame_set(f)
+        segs = [[list(arm.matrix_world @ b.head), list(arm.matrix_world @ b.tail)]
+                for b in arm.pose.bones]
+        samples.append({"frame": f, "segments": segs})
+    Path(out_json).write_text(json.dumps({"fps": fps, "samples": samples}))
+
+
+def verify(video):
+    """venv side: pull the baked bones out of the .blend and render a contact sheet —
+    source video frame beside the reconstructed 3D skeleton — so the pose/coordinate
+    conversion can be eyeballed. Writes blend-files/<name>.preview.png."""
+    import subprocess
+    import tempfile
+    import cv2
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    video = Path(video)
+    blend = BLENDS / f"{video.stem}.blend"
+    if not blend.exists():
+        sys.exit(f"no .blend to verify: {blend}")
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tmp:
+        jp = Path(tmp.name)
+    try:
+        subprocess.run([BLENDER, "--background", "--python", __file__, "--",
+                        "--dump", str(blend), str(jp)], check=True)
+        d = json.loads(jp.read_text())
+    finally:
+        jp.unlink(missing_ok=True)
+
+    fps = d["fps"]
+    cap = cv2.VideoCapture(str(video))
+    samples = d["samples"]
+    n = len(samples)
+    fig = plt.figure(figsize=(2.4 * n, 6))
+    for i, s in enumerate(samples):
+        cap.set(cv2.CAP_PROP_POS_MSEC, (s["frame"] - 1) / fps * 1000.0)
+        ok, frame = cap.read()
+        ax = fig.add_subplot(2, n, i + 1)
+        if ok:
+            ax.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        ax.set_title(f"frame {s['frame']}", fontsize=8)
+        ax.axis("off")
+
+        ax3 = fig.add_subplot(2, n, n + i + 1, projection="3d")
+        pts = [c for h, t in s["segments"] for c in (h, t)]
+        for h, t in s["segments"]:
+            ax3.plot([h[0], t[0]], [h[1], t[1]], [h[2], t[2]], "-o", c="k", ms=1.5, lw=1)
+        # equal aspect cube so limb lengths / "lying down" read truthfully
+        ctr = [statistics.mean(p[c] for p in pts) for c in range(3)]
+        r = max((max(p[c] for p in pts) - min(p[c] for p in pts)) for c in range(3)) / 2 or 1
+        for c, lim in enumerate((ax3.set_xlim3d, ax3.set_ylim3d, ax3.set_zlim3d)):
+            lim(ctr[c] - r, ctr[c] + r)
+        ax3.view_init(elev=8, azim=-90)  # front view (camera down -Y), Z up
+        ax3.set_box_aspect((1, 1, 1))
+        ax3.axis("off")
+    cap.release()
+    out_png = BLENDS / f"{video.stem}.preview.png"
+    fig.savefig(out_png, dpi=80, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote {out_png.name}")
+    return out_png
+
+
 # ─────────────────────────── entry point ───────────────────────────
 
 def process(video):
@@ -417,18 +498,25 @@ def main():
     try:
         import bpy  # noqa: F401 — only importable inside Blender
         argv = sys.argv[sys.argv.index("--") + 1:]
-        build_blend(argv[0], argv[1])
+        if argv[0] == "--dump":
+            dump_bones(argv[1], argv[2])
+        else:
+            build_blend(argv[0], argv[1])
         return
     except ImportError:
         pass
 
-    videos = [Path(a) for a in sys.argv[1:]]
+    args = sys.argv[1:]
+    verify_only = "--verify" in args           # --verify: skip the build, just (re)draw preview
+    videos = [Path(a) for a in args if not a.startswith("--")]
     if not videos:
         videos = sorted(p for p in DANCES.iterdir() if p.suffix.lower() in VIDEO_EXT)
     if not videos:
         sys.exit(f"no videos given and none found in {DANCES}/")
     for v in videos:
-        process(v)
+        if not verify_only:
+            process(v)
+        verify(v)  # every build ends with a preview PNG to eyeball
 
 
 if __name__ == "__main__":

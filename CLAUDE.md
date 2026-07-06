@@ -27,7 +27,8 @@ Everything lives in **`dance_to_3d.py`** and runs with a single command:
     .venv/bin/python dance_to_3d.py [video ...]
 
 With no arguments it processes every video in `dances/`; each `<name>.<ext>` becomes
-`blend-files/<name>.blend`. Open a result in Blender and press play.
+`blend-files/<name>.blend`. Open a result in Blender and press play. Every build also
+writes a `blend-files/<name>.preview.png` contact sheet (see Self-verification below).
 
 The file has two halves that run in different interpreters — this is why it can't just
 be a linear script:
@@ -44,6 +45,27 @@ The venv half re-invokes Blender on this same file as a subprocess
 (`blender --background --python dance_to_3d.py -- <json> <blend>`), so you only run the
 one command. `import bpy` succeeds only inside Blender, which is how the file knows which
 half to run; the temp JSON is deleted afterward.
+
+## Self-verification (look at the output without opening Blender)
+
+Every build ends with a preview so the result can be eyeballed — and iterated on —
+without a human opening Blender:
+
+    .venv/bin/python dance_to_3d.py --verify dances/<name>.<ext>   # redraw preview only, no rebuild
+
+`verify()` (venv) re-invokes Blender (`-- --dump <blend> <json>`) to run `dump_bones()`,
+which opens the built `.blend` and writes each bone's **world** head/tail at 8 sample
+frames. Back in the venv, matplotlib draws a contact sheet — source video frame beside
+the reconstructed 3D skeleton at the matching timestamp — to `blend-files/<name>.preview.png`.
+Read that PNG to check the pose and, critically, the coordinate conversion: a wrong axis
+shows up immediately as a dancer lying down or mirrored.
+
+Why not render the `.blend` directly: an armature has no mesh, so a normal (F12) render
+shows nothing, and `bpy.ops.render.opengl` fails headless ("no opengl context"). Reading
+the baked bone matrices out and plotting them is the way to see bones from `--background`.
+Not MCP: `blender-mcp` needs a live Blender + addon + socket, which can't verify a
+headless batch that builds and exits. Known wart: the last sample frame can overshoot the
+video's end, leaving one blank video panel — cosmetic.
 
 ## Technical notes
 
