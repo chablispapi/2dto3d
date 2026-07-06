@@ -101,6 +101,10 @@ video's end, leaving one blank video panel — cosmetic.
   foot at the origin. This replaced an earlier monocular hip-screen-translation hack that
   only recovered ~9 cm and was jittery. Trade-off: global floor travel (dancer walking
   across the room) is intentionally dropped — right for an in-place dance.
+  The `gain` knob (default 1.8) scales the recovered sway: 1.0 is physically exact (planted
+  foot dead still, ~28 cm hip travel on dance.MP4); >1 exaggerates hip movement for
+  readability but lets the planted foot slide by (gain-1)x its motion. Only the high-pass
+  sway is scaled, not the removed global drift.
 - **VFR video warning**: this footage is variable-frame-rate (phone/TikTok). OpenCV
   reports an inconsistent frame count and FPS run-to-run; cross-check against
   `ffprobe`'s `avg_frame_rate`/`duration` (here 41.43 fps, 14.70 s) if playback speed

@@ -149,13 +149,17 @@ def rigidify(frames):
     return out
 
 
-def ground_anchor(frames, fps):
+def ground_anchor(frames, fps, gain=1.8):
     """Plant the feet on the ground so hip sway/bob shows over stationary feet.
 
     MediaPipe's world landmarks are HIP-centered: the hips sit at the origin every
     frame. If we just use the raw coordinates, the hips are frozen and the feet slide.
     This integrates the movement of the support foot to recover true hip translation,
-    ensuring the support foot stays perfectly planted during weight shifts."""
+    ensuring the support foot stays perfectly planted during weight shifts.
+
+    `gain` scales the recovered sway: gain=1.0 is physically exact (planted foot stays
+    put); >1 exaggerates hip movement for readability at the cost of the planted foot
+    sliding by (gain-1)x its motion. Only the high-pass sway is scaled, not global drift."""
     frozen = [f for f in frames if f is not None]
     if not frozen:
         return frames
@@ -196,9 +200,9 @@ def ground_anchor(frames, fps):
         if f is None:
             out.append(None)
             continue
-        hx = H[i][0] - smoothed_H[h_idx][0]
-        hy = H[i][1] - smoothed_H[h_idx][1]
-        hz = H[i][2] - smoothed_H[h_idx][2]
+        hx = (H[i][0] - smoothed_H[h_idx][0]) * gain
+        hy = (H[i][1] - smoothed_H[h_idx][1]) * gain
+        hz = (H[i][2] - smoothed_H[h_idx][2]) * gain
         h_idx += 1
         out.append([[f[lm][0] + hx, f[lm][1] + hy, f[lm][2] + hz, f[lm][3]] for lm in range(33)])
 
@@ -449,17 +453,32 @@ def verify(video):
         jp.unlink(missing_ok=True)
 
     fps = d["fps"]
-    cap = cv2.VideoCapture(str(video))
     samples = d["samples"]
     n = len(samples)
+
+    # One sequential decode pass, keeping the frame nearest each sample's timestamp.
+    # Seeking (POS_MSEC/POS_FRAMES) is unreliable on VFR footage; this isn't, and the
+    # last sample naturally lands on the true final frame instead of overshooting to blank.
+    targets = [(s["frame"] - 1) / fps * 1000.0 for s in samples]
+    best = [None] * n
+    cap = cv2.VideoCapture(str(video))
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        t = cap.get(cv2.CAP_PROP_POS_MSEC)
+        for j, tgt in enumerate(targets):
+            dist = abs(t - tgt)
+            if best[j] is None or dist < best[j][0]:
+                best[j] = (dist, frame.copy())
+    cap.release()
+
     gs = GridSpec(3, n, height_ratios=[3, 3, 2])
     fig = plt.figure(figsize=(2.4 * n, 8))
     for i, s in enumerate(samples):
-        cap.set(cv2.CAP_PROP_POS_MSEC, (s["frame"] - 1) / fps * 1000.0)
-        ok, frame = cap.read()
         ax = fig.add_subplot(gs[0, i])
-        if ok:
-            ax.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        if best[i] is not None:
+            ax.imshow(cv2.cvtColor(best[i][1], cv2.COLOR_BGR2RGB))
         ax.set_title(f"frame {s['frame']}", fontsize=8)
         ax.axis("off")
 
@@ -475,7 +494,6 @@ def verify(video):
         ax3.view_init(elev=8, azim=-90)  # front view (camera down -Y), Z up
         ax3.set_box_aspect((1, 1, 1))
         ax3.axis("off")
-    cap.release()
 
     # hip trajectory (top-down): shows translation the auto-centered skeletons hide
     track = d["hip_track"]
