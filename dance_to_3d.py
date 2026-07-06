@@ -413,7 +413,14 @@ def dump_bones(blend_path, out_json, n=8):
         segs = [[list(arm.matrix_world @ b.head), list(arm.matrix_world @ b.tail)]
                 for b in arm.pose.bones]
         samples.append({"frame": f, "segments": segs})
-    Path(out_json).write_text(json.dumps({"fps": fps, "samples": samples}))
+    # pelvis (hip midpoint) every frame, so translation the per-frame skeletons hide
+    # (each is auto-centered) shows up as a trajectory
+    track = []
+    for f in range(f0, f1 + 1):
+        scene.frame_set(f)
+        track.append(list(arm.matrix_world @ arm.pose.bones["34-33"].head))
+    Path(out_json).write_text(json.dumps(
+        {"fps": fps, "samples": samples, "hip_track": track}))
 
 
 def verify(video):
@@ -426,6 +433,7 @@ def verify(video):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.gridspec import GridSpec
 
     video = Path(video)
     blend = BLENDS / f"{video.stem}.blend"
@@ -444,17 +452,18 @@ def verify(video):
     cap = cv2.VideoCapture(str(video))
     samples = d["samples"]
     n = len(samples)
-    fig = plt.figure(figsize=(2.4 * n, 6))
+    gs = GridSpec(3, n, height_ratios=[3, 3, 2])
+    fig = plt.figure(figsize=(2.4 * n, 8))
     for i, s in enumerate(samples):
         cap.set(cv2.CAP_PROP_POS_MSEC, (s["frame"] - 1) / fps * 1000.0)
         ok, frame = cap.read()
-        ax = fig.add_subplot(2, n, i + 1)
+        ax = fig.add_subplot(gs[0, i])
         if ok:
             ax.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         ax.set_title(f"frame {s['frame']}", fontsize=8)
         ax.axis("off")
 
-        ax3 = fig.add_subplot(2, n, n + i + 1, projection="3d")
+        ax3 = fig.add_subplot(gs[1, i], projection="3d")
         pts = [c for h, t in s["segments"] for c in (h, t)]
         for h, t in s["segments"]:
             ax3.plot([h[0], t[0]], [h[1], t[1]], [h[2], t[2]], "-o", c="k", ms=1.5, lw=1)
@@ -467,6 +476,19 @@ def verify(video):
         ax3.set_box_aspect((1, 1, 1))
         ax3.axis("off")
     cap.release()
+
+    # hip trajectory (top-down): shows translation the auto-centered skeletons hide
+    track = d["hip_track"]
+    xs = [p[0] for p in track]
+    ys = [p[1] for p in track]
+    axh = fig.add_subplot(gs[2, :])
+    axh.scatter(xs, ys, c=range(len(track)), cmap="viridis", s=5)
+    axh.set_aspect("equal")
+    axh.set_xlabel("left-right X (m)")
+    axh.set_ylabel("depth Y (m)")
+    axh.set_title(f"hip path, top-down (color=time) — "
+                  f"left-right {max(xs) - min(xs):.2f} m, depth {max(ys) - min(ys):.2f} m",
+                  fontsize=9)
     out_png = BLENDS / f"{video.stem}.preview.png"
     fig.savefig(out_png, dpi=80, bbox_inches="tight")
     plt.close(fig)
