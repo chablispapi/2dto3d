@@ -26,6 +26,12 @@ MODEL_URL = ("https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
              "pose_landmarker_full/float16/latest/pose_landmarker_full.task")
 BLENDER = os.environ.get("BLENDER", "/Applications/Blender.app/Contents/MacOS/Blender")
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"}
+# Yaw the finished figure so motion toward the camera (MediaPipe z -> Blender Y, depth)
+# reads from the default front view instead of hiding along the view axis. The dance's
+# biggest move — the hip thrust — is encoded as the spine leaning in depth (~30 cm here,
+# vs ~18 cm lateral), invisible head-on; 45deg turns it into a visible diagonal lean.
+# Presentation only, physics untouched. 0 = front-facing, 90 = full side profile.
+PRESENT_YAW_DEG = 45
 
 # MediaPipe POSE_CONNECTIONS (33-landmark topology). Single source of truth now that
 # extract and import live in one file.
@@ -391,6 +397,8 @@ def build_blend(json_path, blend_path):
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
 
+    obj.rotation_euler = (0.0, 0.0, math.radians(PRESENT_YAW_DEG))  # present depth motion
+
     scene.frame_set(1)
     Path(blend_path).parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=str(blend_path))
@@ -495,18 +503,29 @@ def verify(video):
         ax3.set_box_aspect((1, 1, 1))
         ax3.axis("off")
 
-    # hip trajectory (top-down): shows translation the auto-centered skeletons hide
+    # hip trajectory, two projections (translation the auto-centered skeletons hide):
+    # head-on = what you see from the front (depth invisible along view axis unless yawed),
+    # top-down = proves the depth motion is there regardless.
     track = d["hip_track"]
     xs = [p[0] for p in track]
     ys = [p[1] for p in track]
-    axh = fig.add_subplot(gs[2, :])
-    axh.scatter(xs, ys, c=range(len(track)), cmap="viridis", s=5)
-    axh.set_aspect("equal")
-    axh.set_xlabel("left-right X (m)")
-    axh.set_ylabel("depth Y (m)")
-    axh.set_title(f"hip path, top-down (color=time) — "
-                  f"left-right {max(xs) - min(xs):.2f} m, depth {max(ys) - min(ys):.2f} m",
-                  fontsize=9)
+    zs = [p[2] for p in track]
+    t = range(len(track))
+    half = n // 2 or 1
+    axf = fig.add_subplot(gs[2, :half])
+    axf.scatter(xs, zs, c=t, cmap="viridis", s=5)
+    axf.set_aspect("equal")
+    axf.set_xlabel("left-right X (m)")
+    axf.set_ylabel("up Z (m)")
+    axf.set_title(f"head-on view — X {max(xs) - min(xs):.2f} m, up {max(zs) - min(zs):.2f} m",
+                  fontsize=8)
+    axt = fig.add_subplot(gs[2, half:])
+    axt.scatter(xs, ys, c=t, cmap="viridis", s=5)
+    axt.set_aspect("equal")
+    axt.set_xlabel("left-right X (m)")
+    axt.set_ylabel("depth Y (m)")
+    axt.set_title(f"top-down — X {max(xs) - min(xs):.2f} m, depth {max(ys) - min(ys):.2f} m",
+                  fontsize=8)
     out_png = BLENDS / f"{video.stem}.preview.png"
     fig.savefig(out_png, dpi=80, bbox_inches="tight")
     plt.close(fig)

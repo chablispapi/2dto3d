@@ -105,6 +105,17 @@ video's end, leaving one blank video panel — cosmetic.
   foot dead still, ~28 cm hip travel on dance.MP4); >1 exaggerates hip movement for
   readability but lets the planted foot slide by (gain-1)x its motion. Only the high-pass
   sway is scaled, not the removed global drift.
+- **Depth motion hides head-on** (`PRESENT_YAW_DEG`, default 45°). The dance's biggest
+  move — a hip thrust toward the camera — is NOT pelvis translation: MediaPipe pins the
+  pelvis at the origin, so the thrust is encoded as the spine leaning in depth (measured
+  ~30 cm here, vs ~18 cm lateral lean). That lean is real and correct but invisible when
+  the model is viewed head-on, because motion along the view axis foreshortens to nothing
+  (the same projection problem this whole project is about). `build_blend` yaws the finished
+  armature 45° about Z so that dominant depth motion reads as a visible diagonal lean from
+  the default front view; it's presentation only (physics untouched). 0 = front-facing,
+  90 = full side profile. The preview's `head-on` vs `top-down` hip panels exist to catch
+  exactly this: motion that's large top-down but flat head-on is depth you can't see
+  without turning the figure.
 - **VFR video warning**: this footage is variable-frame-rate (phone/TikTok). OpenCV
   reports an inconsistent frame count and FPS run-to-run; cross-check against
   `ffprobe`'s `avg_frame_rate`/`duration` (here 41.43 fps, 14.70 s) if playback speed
