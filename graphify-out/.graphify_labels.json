@@ -1,1 +1,1 @@
-{"0": "Pipeline & Blender Build", "1": "Pose Extraction & Cleanup", "2": "build_blend Code", "3": "Graphify Tool Docs", "4": "Extract & Ground-Anchor Code", "5": "Smoothing Code", "6": "Entry & Orchestration", "7": "Rigidify Code"}
+{"0": "Blender Build & Armature", "1": "Signal Cleanup Pipeline", "2": "Dance1 Preview Outputs", "3": "Dance Preview & Anchoring", "4": "Extraction & Rigidify", "5": "Smoothing & Selftest", "6": "Headless Verification", "7": "Pipeline Entry & Coord Transform", "8": "CLI Dispatch & Dump", "9": "Graphify Tooling"}

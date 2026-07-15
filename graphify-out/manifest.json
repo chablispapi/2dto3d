@@ -1,8 +1,8 @@
 {
   "CLAUDE.md": {
-    "mtime": 1783116372.3360844,
-    "ast_hash": "55ea67d7ff8e69f63f69d25d96878000",
-    "semantic_hash": "55ea67d7ff8e69f63f69d25d96878000"
+    "mtime": 1784108510.0183976,
+    "ast_hash": "f1dab87631d3e55b2382cdff81c17092",
+    "semantic_hash": "f1dab87631d3e55b2382cdff81c17092"
   },
   ".agents/rules/graphify.md": {
     "mtime": 1783101798.6181648,
@@ -15,9 +15,9 @@
     "semantic_hash": "0bc020d491fca99550c1ea3de0a5f862"
   },
   "dance_to_3d.py": {
-    "mtime": 1783116237.1041384,
-    "ast_hash": "bc3dc218bdc97afa1f62037a86bc538c",
-    "semantic_hash": "bc3dc218bdc97afa1f62037a86bc538c"
+    "mtime": 1784108383.8412838,
+    "ast_hash": "3bc485783552a1b2e1c2fd8c19b4896e",
+    "semantic_hash": "3bc485783552a1b2e1c2fd8c19b4896e"
   },
   "dances/dance.MP4": {
     "mtime": 1783111297.575345,
@@ -28,5 +28,45 @@
     "mtime": 1783115219.0,
     "ast_hash": "ccd41ce596257f5a3ed5528a86022203",
     "semantic_hash": "ccd41ce596257f5a3ed5528a86022203"
+  },
+  "blend-files/dance.blend.track.json": {
+    "mtime": 1783330229.1148603,
+    "ast_hash": "f65030ef50449341b443e2765411190d",
+    "semantic_hash": "f65030ef50449341b443e2765411190d"
+  },
+  "DESIGN.md": {
+    "mtime": 1784107422.6543036,
+    "ast_hash": "7f7b65646fde26c4cfabe2907b33735d",
+    "semantic_hash": "7f7b65646fde26c4cfabe2907b33735d"
+  },
+  "README.md": {
+    "mtime": 1783330882.971029,
+    "ast_hash": "3cfc8d0ea323bce5a4e329310b91eb06",
+    "semantic_hash": "3cfc8d0ea323bce5a4e329310b91eb06"
+  },
+  "TODO.md": {
+    "mtime": 1784107477.0608683,
+    "ast_hash": "81f64c81fe4256452b5a632c894c2e6e",
+    "semantic_hash": "81f64c81fe4256452b5a632c894c2e6e"
+  },
+  "blend-files/dance.preview.png": {
+    "mtime": 1784108435.4951186,
+    "ast_hash": "d71bf842e07f83fc8930f70bff772403",
+    "semantic_hash": "d71bf842e07f83fc8930f70bff772403"
+  },
+  "blend-files/dance1.preview.png": {
+    "mtime": 1784108475.4142382,
+    "ast_hash": "4861513f439e3f60ee26e84b8cb1bfcc",
+    "semantic_hash": "4861513f439e3f60ee26e84b8cb1bfcc"
+  },
+  "image.png": {
+    "mtime": 1783332173.4527876,
+    "ast_hash": "4110c7dcfe5ea2dad6c4237d09d6aacf",
+    "semantic_hash": "4110c7dcfe5ea2dad6c4237d09d6aacf"
+  },
+  "dances/dance2.mov": {
+    "mtime": 1783167495.0,
+    "ast_hash": "6093ccaf90c789af550f9f60e69e7576",
+    "semantic_hash": "6093ccaf90c789af550f9f60e69e7576"
   }
 }
