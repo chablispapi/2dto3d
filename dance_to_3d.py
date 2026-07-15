@@ -32,6 +32,7 @@ VIDEO_EXT = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"}
 # vs ~18 cm lateral), invisible head-on; 45deg turns it into a visible diagonal lean.
 # Presentation only, physics untouched. 0 = front-facing, 90 = full side profile.
 PRESENT_YAW_DEG = 45
+HAND_SCALE = 1.5  # enlarge fingers around the wrist so hands read at stick-figure scale
 
 # MediaPipe POSE_CONNECTIONS (33-landmark topology). Single source of truth now that
 # extract and import live in one file.
@@ -80,18 +81,22 @@ def _one_euro(series, visibilities, fps, mincutoff, beta, dcutoff=1.0):
 def smooth_frames(frames, fps, mincutoff=1.5, beta=0.4):
     """Velocity-adaptive One Euro low-pass per landmark axis: heavy smoothing when a
     joint moves slowly (kills jitter), light when fast (no lag on quick dance moves),
-    escaping the fixed lag-vs-jitter tradeoff of a moving average. Visibility carried
-    through unfiltered. Knobs: lower mincutoff = smoother; higher beta = less lag."""
+    escaping the fixed lag-vs-jitter tradeoff of a moving average. Run forward AND
+    backward, then averaged: the pipeline is offline, so we can afford a zero-phase
+    (acausal) pass that cancels the causal filter's lag on sharp dance accents.
+    Visibility carried through unfiltered. Knobs: lower mincutoff = smoother; higher
+    beta = less lag."""
     if not frames: return frames
     out = [None if f is None else [[0.0, 0.0, 0.0, f[lm][3]] for lm in range(33)] for f in frames]
     for lm in range(33):
         visibilities = [None if f is None else f[lm][3] for f in frames]
         for c in range(3):
             series = [None if f is None else f[lm][c] for f in frames]
-            sm = _one_euro(series, visibilities, fps, mincutoff, beta)
-            for i, v in enumerate(sm):
+            fwd = _one_euro(series, visibilities, fps, mincutoff, beta)
+            bwd = _one_euro(series[::-1], visibilities[::-1], fps, mincutoff, beta)[::-1]
+            for i, (a, b) in enumerate(zip(fwd, bwd)):
                 if out[i] is not None:
-                    out[i][lm][c] = v
+                    out[i][lm][c] = (a + b) / 2
     return out
 
 
@@ -155,7 +160,7 @@ def rigidify(frames):
     return out
 
 
-def ground_anchor(frames, fps, gain=1.8):
+def ground_anchor(frames, fps, gain=1.8, lock_eps=0.25, lock_blend_s=0.15):
     """Plant the feet on the ground so hip sway/bob shows over stationary feet.
 
     MediaPipe's world landmarks are HIP-centered: the hips sit at the origin every
@@ -165,7 +170,10 @@ def ground_anchor(frames, fps, gain=1.8):
 
     `gain` scales the recovered sway: gain=1.0 is physically exact (planted foot stays
     put); >1 exaggerates hip movement for readability at the cost of the planted foot
-    sliding by (gain-1)x its motion. Only the high-pass sway is scaled, not global drift."""
+    sliding by (gain-1)x its motion. Only the high-pass sway is scaled, not global drift.
+    The lock pass then re-plants the support foot whenever it moves slower than
+    `lock_eps` (m/s), cross-fading over `lock_blend_s` seconds, so gain-induced slide
+    never shows during actual floor contact."""
     frozen = [f for f in frames if f is not None]
     if not frozen:
         return frames
@@ -176,6 +184,7 @@ def ground_anchor(frames, fps, gain=1.8):
     for f in frames:
         if f is None:
             H.append(None)
+            prev_f = None  # detection gap: restart integration, a delta across it would teleport the hips
             continue
         if prev_f is not None:
             # support foot is the one with max y (world-DOWN)
@@ -212,6 +221,39 @@ def ground_anchor(frames, fps, gain=1.8):
         h_idx += 1
         out.append([[f[lm][0] + hx, f[lm][1] + hy, f[lm][2] + hz, f[lm][3]] for lm in range(33)])
 
+    # Velocity-gated foot-contact lock: gain > 1 lets the planted foot slide by
+    # (gain-1)x its motion. While the support ankle moves slower than lock_eps, shift
+    # the whole frame so that ankle is DEAD still at its touchdown position; cross-fade
+    # the correction over lock_blend_s at window edges to avoid pops.
+    # ponytail: one support foot at a time, no double-stance solve.
+    blend = max(1, int(fps * lock_blend_s))
+    n = len(out)
+    sup, planted = [None] * n, [False] * n
+    for i, f in enumerate(out):
+        if f is None:
+            continue
+        sup[i] = 27 if f[27][1] > f[28][1] else 28
+        prev = out[i - 1] if i and out[i - 1] is not None else None
+        speed = math.dist(f[sup[i]][:3], prev[sup[i]][:3]) * fps if prev else 0.0
+        planted[i] = speed < lock_eps
+    i = 0
+    while i < n:
+        if not planted[i]:
+            i += 1
+            continue
+        j = i
+        while j + 1 < n and planted[j + 1] and sup[j + 1] == sup[i]:
+            j += 1
+        s = sup[i]
+        lock = out[i][s][:3]
+        for k in range(i, j + 1):
+            w = min(1.0, (k - i + 1) / blend, (j - k + 1) / blend)
+            dx = [(lock[c] - out[k][s][c]) * w for c in range(3)]
+            for lm in range(33):
+                for c in range(3):
+                    out[k][lm][c] += dx[c]
+        i = j + 1
+
     # Center the rig: shift so the median lowest-foot sits at the origin.
     valid_out = [f for f in out if f is not None]
     if valid_out:
@@ -235,7 +277,9 @@ def extract(video, json_path):
     if not MODEL.exists():
         print("downloading pose model...", flush=True)
         import urllib.request
-        urllib.request.urlretrieve(MODEL_URL, MODEL)
+        part = MODEL.with_suffix(".part")  # atomic: a Ctrl-C can't leave a corrupt MODEL
+        urllib.request.urlretrieve(MODEL_URL, part)
+        os.replace(part, MODEL)
 
     cap = cv2.VideoCapture(str(video))
     if not cap.isOpened():
@@ -265,6 +309,13 @@ def extract(video, json_path):
             if len(frames) % 100 == 0:
                 print(f"  {len(frames)}/{total} frames", flush=True)
     cap.release()
+
+    if all(f is None for f in frames):
+        sys.exit(f"no pose detected in {video}")
+    if len(timestamps) > 1 and timestamps[-1] > timestamps[0]:
+        # CAP_PROP_FPS is unreliable on VFR footage (varies run to run); the average
+        # rate derived from the real presentation timestamps is not.
+        fps = 1000.0 * (len(timestamps) - 1) / (timestamps[-1] - timestamps[0])
 
     # Smooth jitter, pin bone lengths, then plant the feet on the ground
     frames = smooth_frames(frames, fps)
@@ -316,11 +367,10 @@ def build_blend(json_path, blend_path):
             f = i + 1
             
         # Scale up hands (make fingers visually larger)
-        hand_scale = 1.5
         for wrist, fingers in [(15, [17, 19, 21]), (16, [18, 20, 22])]:
             for fing in fingers:
                 for c in range(3):
-                    lms[fing][c] = lms[wrist][c] + (lms[fing][c] - lms[wrist][c]) * hand_scale
+                    lms[fing][c] = lms[wrist][c] + (lms[fing][c] - lms[wrist][c]) * HAND_SCALE
             
         neck = [(lms[11][c] + lms[12][c]) / 2 for c in range(4)]
         pelvis = [(lms[23][c] + lms[24][c]) / 2 for c in range(4)]
@@ -356,15 +406,11 @@ def build_blend(json_path, blend_path):
         (24, 26), (26, 28), (28, 30), (28, 32),
     ]
     
-    # Find first valid frame to set the correct edit mode rest lengths
+    # Find first valid frame to set the correct edit mode rest lengths.
+    # (Hands were already scaled in place by the keyframe loop above — don't rescale.)
     valid_frames = [f for f in frames if f is not None]
     if valid_frames:
         f0 = valid_frames[0]
-        # Make sure to scale hands in frame 0 too!
-        for wrist, fingers in [(15, [17, 19, 21]), (16, [18, 20, 22])]:
-            for fing in fingers:
-                for c in range(3):
-                    f0[fing][c] = f0[wrist][c] + (f0[fing][c] - f0[wrist][c]) * hand_scale
         neck_f0 = [(f0[11][c] + f0[12][c]) / 2 for c in range(4)]
         pelvis_f0 = [(f0[23][c] + f0[24][c]) / 2 for c in range(4)]
         head_f0 = [(f0[7][c] + f0[8][c]) / 2 for c in range(4)]
@@ -372,10 +418,37 @@ def build_blend(json_path, blend_path):
     else:
         ext_f0 = [[0, 0, 0, 0]] * 36
 
+    # Deterministic rest-pose roll instead of Blender's default: limb bones get the
+    # limb plane's normal (shoulder-elbow-wrist / hip-knee-ankle) so elbows and knees
+    # hinge on their real axis; axial bones use the body's left-right axis. Baked
+    # STRETCH_TO motion inherits it as minimal twist.
+    # ponytail: rest roll only; per-frame twist needs a track constraint per limb —
+    # add if a mesh is ever skinned.
+    from mathutils import Vector
+    ROLL_TRIPLES = {  # bone -> landmark triple whose plane normal is the hinge axis
+        (11, 13): (11, 13, 15), (13, 15): (11, 13, 15),
+        (12, 14): (12, 14, 16), (14, 16): (12, 14, 16),
+        (23, 25): (23, 25, 27), (25, 27): (23, 25, 27),
+        (24, 26): (24, 26, 28), (26, 28): (24, 26, 28),
+    }
+    AXIAL = {(34, 33), (33, 35), (33, 11), (33, 12), (34, 23), (34, 24)}
+
+    def bl_vec(i):
+        return Vector(mp_to_blender(*ext_f0[i][:3]))
+
     for a, b in BLENDER_CONNECTIONS:
         bone = arm.edit_bones.new(f"{a:02d}-{b:02d}")
         bone.head = mp_to_blender(*ext_f0[a][:3])
         bone.tail = mp_to_blender(*ext_f0[b][:3])
+        if (a, b) in ROLL_TRIPLES:
+            p, q, r = (bl_vec(i) for i in ROLL_TRIPLES[(a, b)])
+            ref = (q - p).cross(r - q)
+        elif (a, b) in AXIAL:
+            ref = bl_vec(12) - bl_vec(11)
+        else:
+            ref = None  # hand/foot twigs: default roll is fine
+        if ref is not None and ref.length > 1e-6:
+            bone.align_roll(ref)
     bpy.ops.object.mode_set(mode="POSE")
     for a, b in BLENDER_CONNECTIONS:
         pb = obj.pose.bones[f"{a:02d}-{b:02d}"]
@@ -454,7 +527,10 @@ def verify(video):
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tmp:
         jp = Path(tmp.name)
     try:
-        subprocess.run([BLENDER, "--background", "--python", __file__, "--",
+        # --python-exit-code: Blender otherwise exits 0 even when the script throws,
+        # which would make check=True useless and failures silent
+        subprocess.run([BLENDER, "--background", "--python-exit-code", "1",
+                        "--python", __file__, "--",
                         "--dump", str(blend), str(jp)], check=True)
         d = json.loads(jp.read_text())
     finally:
@@ -533,6 +609,75 @@ def verify(video):
     return out_png
 
 
+# ─────────────────────────── selftest ───────────────────────────
+
+def selftest():
+    """Run the cleanup passes over a synthetic noisy skeleton (stdlib only, no video,
+    no MediaPipe) and assert the invariants that past regressions broke: constant bone
+    lengths, no NaN/None leaks, no hip teleport across a detection gap."""
+    import random
+    random.seed(0)
+    fps = 30.0
+
+    P = {  # rough humanoid, MediaPipe world coords (x right, y DOWN, meters)
+        11: (-0.18, -0.45, 0.0), 12: (0.18, -0.45, 0.0),
+        13: (-0.30, -0.20, 0.02), 14: (0.30, -0.20, 0.02),
+        15: (-0.32, 0.05, 0.05), 16: (0.32, 0.05, 0.05),
+        17: (-0.34, 0.12, 0.06), 18: (0.34, 0.12, 0.06),
+        19: (-0.36, 0.11, 0.05), 20: (0.36, 0.11, 0.05),
+        21: (-0.30, 0.10, 0.07), 22: (0.30, 0.10, 0.07),
+        23: (-0.10, 0.0, 0.0), 24: (0.10, 0.0, 0.0),
+        25: (-0.11, 0.40, 0.01), 26: (0.11, 0.40, 0.01),
+        27: (-0.12, 0.80, 0.0), 28: (0.12, 0.80, 0.0),
+        29: (-0.12, 0.85, -0.05), 30: (0.12, 0.85, -0.05),
+        31: (-0.12, 0.86, 0.10), 32: (0.12, 0.86, 0.10),
+    }
+    for i in range(11):
+        P[i] = (-0.05 + 0.01 * i, -0.60, 0.03)
+    base = [P[i] for i in range(33)]
+
+    frames = []
+    for i in range(60):
+        if 30 <= i < 33:
+            frames.append(None)  # detection gap
+            continue
+        sway = 0.2 * math.sin(i / 60 * 2 * math.pi)
+        frames.append([[x + sway + random.gauss(0, 0.01), y + random.gauss(0, 0.01),
+                        z + random.gauss(0, 0.01), 1.0] for x, y, z in base])
+
+    fr = smooth_frames(frames, fps)
+    fr = rigidify(fr)
+    fr = ground_anchor(fr, fps)
+
+    assert len(fr) == len(frames), "frame count changed"
+    assert all((a is None) == (b is None) for a, b in zip(fr, frames)), "None positions changed"
+    for f in fr:
+        if f is None:
+            continue
+        for lm in f:
+            assert len(lm) == 4 and all(math.isfinite(v) for v in lm), f"bad landmark {lm}"
+
+    valid = [f for f in fr if f is not None]
+    # rigidify pins spanning-tree edges only; cycle-closing edges like (17,19) vary by
+    # design, so assert on the limb/torso bones that are always tree edges
+    body = [(11, 13), (13, 15), (12, 14), (14, 16), (23, 25), (25, 27),
+            (24, 26), (26, 28), (23, 24), (11, 23)]
+    for a, b in body:
+        lens = [math.dist(f[a][:3], f[b][:3]) for f in valid]
+        assert max(lens) - min(lens) < 1e-6, f"bone {a}-{b} length varies by {max(lens) - min(lens)}"
+
+    prev = None
+    for f in fr:
+        if f is None:
+            continue
+        pel = [(f[23][c] + f[24][c]) / 2 for c in range(3)]
+        if prev is not None:
+            assert math.dist(pel, prev) < 0.3, "hip teleport across frames/gap"
+        prev = pel
+
+    print("selftest OK")
+
+
 # ─────────────────────────── entry point ───────────────────────────
 
 def process(video):
@@ -547,7 +692,10 @@ def process(video):
         json_path = Path(tmp.name)
     try:
         extract(video, json_path)
-        subprocess.run([BLENDER, "--background", "--python", __file__, "--",
+        # --python-exit-code: Blender otherwise exits 0 even when the script throws,
+        # which would make check=True useless and failures silent
+        subprocess.run([BLENDER, "--background", "--python-exit-code", "1",
+                        "--python", __file__, "--",
                         str(json_path), str(blend)], check=True)
     finally:
         json_path.unlink(missing_ok=True)
@@ -566,6 +714,9 @@ def main():
         pass
 
     args = sys.argv[1:]
+    if "--selftest" in args:                   # --selftest: cleanup-pass invariants, no video needed
+        selftest()
+        return
     verify_only = "--verify" in args           # --verify: skip the build, just (re)draw preview
     videos = [Path(a) for a in args if not a.startswith("--")]
     if not videos:

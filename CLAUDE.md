@@ -52,6 +52,12 @@ Every build ends with a preview so the result can be eyeballed — and iterated 
 without a human opening Blender:
 
     .venv/bin/python dance_to_3d.py --verify dances/<name>.<ext>   # redraw preview only, no rebuild
+    .venv/bin/python dance_to_3d.py --selftest                     # cleanup-pass invariants, no video/Blender needed
+
+`--selftest` runs the cleanup passes over a synthetic noisy skeleton and asserts the
+invariants past regressions broke: constant (tree-edge) bone lengths after rigidify, no
+NaN/None leaks, no hip teleport across a detection gap. Run it after touching any cleanup
+pass; it needs neither a video nor Blender.
 
 `verify()` (venv) re-invokes Blender (`-- --dump <blend> <json>`) to run `dump_bones()`,
 which opens the built `.blend` and writes each bone's **world** head/tail at 8 sample
@@ -83,8 +89,10 @@ video's end, leaving one blank video panel — cosmetic.
 - Landmark jitter is cleaned in the extract half after detection, in two passes:
   1. **One Euro filter** (`smooth_frames`) — a velocity-adaptive low-pass per landmark
      axis: heavy smoothing when a joint is slow (kills jitter), light when fast (no lag
-     on quick dance moves). Knobs `mincutoff`/`beta` are exposed for taste-tuning; a
-     plain moving average was tried first but can't beat the lag-vs-jitter tradeoff.
+     on quick dance moves). Run forward AND backward, then averaged — the pipeline is
+     offline, so this zero-phase (acausal) pass cancels the causal filter's lag on sharp
+     accents for free. Knobs `mincutoff`/`beta` are exposed for taste-tuning; a plain
+     moving average was tried first but can't beat the lag-vs-jitter tradeoff.
   2. **Bone-length rigidify** (`rigidify`) — MediaPipe's world landmarks let limbs
      stretch 3-5× frame to frame, which is the main thing that reads as non-human.
      Rebuild each frame over a spanning tree of the skeleton (rooted at a hip): keep each
@@ -104,7 +112,12 @@ video's end, leaving one blank video panel — cosmetic.
   The `gain` knob (default 1.8) scales the recovered sway: 1.0 is physically exact (planted
   foot dead still, ~28 cm hip travel on dance.MP4); >1 exaggerates hip movement for
   readability but lets the planted foot slide by (gain-1)x its motion. Only the high-pass
-  sway is scaled, not the removed global drift.
+  sway is scaled, not the removed global drift. A **velocity-gated foot lock** then removes
+  that gain-induced slide during actual contact: while the support ankle moves slower than
+  `lock_eps` (0.25 m/s) the whole frame is shifted so the ankle is dead still at its
+  touchdown position, cross-faded over `lock_blend_s` (0.15 s) to avoid pops. Integration
+  also restarts after a detection gap instead of taking a foot delta across it (which used
+  to teleport the hips).
 - **Depth motion hides head-on** (`PRESENT_YAW_DEG`, default 45°). The dance's biggest
   move — a hip thrust toward the camera — is NOT pelvis translation: MediaPipe pins the
   pelvis at the origin, so the thrust is encoded as the spine leaning in depth (measured
@@ -116,10 +129,21 @@ video's end, leaving one blank video panel — cosmetic.
   90 = full side profile. The preview's `head-on` vs `top-down` hip panels exist to catch
   exactly this: motion that's large top-down but flat head-on is depth you can't see
   without turning the figure.
-- **VFR video warning**: this footage is variable-frame-rate (phone/TikTok). OpenCV
-  reports an inconsistent frame count and FPS run-to-run; cross-check against
-  `ffprobe`'s `avg_frame_rate`/`duration` (here 41.43 fps, 14.70 s) if playback speed
-  looks off.
+- **VFR video warning**: this footage is variable-frame-rate (phone/TikTok), and OpenCV's
+  `CAP_PROP_FPS` is inconsistent run-to-run on it — so the pipeline ignores it when it can:
+  `extract()` derives the effective fps from the real presentation timestamps
+  (`(n-1)/(ts_last-ts_first)`), which is self-consistent with the keyframe mapping since
+  both use the same timestamps. `CAP_PROP_FPS` remains only as the fallback for a
+  single-frame video.
+- **Bone roll is deterministic** (rest pose only): limb bones align their roll to the limb
+  plane's normal (shoulder-elbow-wrist / hip-knee-ankle) so elbows and knees hinge on their
+  real axis; axial bones use the body's left-right axis. Matters only if a mesh/IK is ever
+  attached — baked STRETCH_TO motion inherits it as minimal twist. Per-frame twist would
+  need a track constraint per limb; not built.
+- **Failures are loud**: both Blender invocations pass `--python-exit-code 1` (Blender
+  otherwise exits 0 even when the script throws, silently leaving a stale `.blend`), and
+  `extract()` aborts if no frame has a detected pose. The pose model downloads to a `.part`
+  file and is renamed atomically so an interrupt can't leave a corrupt `.task`.
 - `CONNECTIONS` (the POSE_CONNECTIONS topology) is now a single module-level constant —
   merging the two scripts into one file removed the copy that used to live in each.
 - Video keyframes use the real per-frame timestamps (`cv2.CAP_PROP_POS_MSEC`), stored in
